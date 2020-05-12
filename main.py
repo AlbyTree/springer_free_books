@@ -31,67 +31,93 @@ parser.add_argument(
 parser.add_argument(
     '-v','--verbose', action='store_true', help='show more details'
 )
+parser.add_argument(
+    '--listcat', action='store_true', help='list the books categories'
+)
 
 args = parser.parse_args()
-folder = create_path(args.folder if args.folder else './downloads')
+if args.listcat:
 
-assert args.language in ('en', 'de'), '-l or --language must be "en" or "de"'
-if args.language == 'en':
-    table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17858272/data/'
-elif args.language == 'de':
-    table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17863240/data/'
- 
-table = 'table_' + table_url.split('/')[-1] + '_' + args.language + '.xlsx'
-table_path = os.path.join(folder, table)
-if not os.path.exists(table_path):
-    try:
-        books = pd.read_excel(table_url)
-    except (OSError, IOError) as e:
-        if e.__class__.__name__ == 'HTTPError' and e.getcode() == 404:
-            print('Error: {} URL page not found. '.format(table_url) +
-                  'Fix the URL in the Python script, or get someone to help.')
-        else:
-            print(e)
-        exit(-1)
-    # Save table in the download folder
-    books.to_excel(table_path)
+	assert args.language in ('en', 'de'), '-l or --language must be "en" or "de"'
+	if args.language == 'en':
+		table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17858272/data/'
+	elif args.language == 'de':
+		table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17863240/data/'
+	 
+	try:
+		books = pd.read_excel(table_url)
+	except (OSError, IOError) as e:
+		if e.__class__.__name__ == 'HTTPError' and e.getcode() == 404:
+			print('Error: {} URL page not found. '.format(table_url) +
+				  'Fix the URL in the Python script, or get someone to help.')
+		else:
+			print(e)
+		exit(-1)
+
+	categories = books['English Package Name'].drop_duplicates()
+	print("Available Categories\n")
+	print(categories.to_string(index=False))
 else:
-    books = pd.read_excel(table_path, index_col=0, header=0)
 
-patches = []
-indices = []
-invalid_categories = []
-if not args.pdf and not args.epub:
-    args.pdf = args.epub = True
-if args.dl_chapters:
-    dl_chapters = args.pdf = True
-    args.epub = False
-else:
-    dl_chapters = False
-if args.pdf:
-    patches.append({'url':'/content/pdf/', 'ext':'.pdf','dl_chapters':dl_chapters})
-if args.epub:
-    patches.append({'url':'/download/epub/', 'ext':'.epub','dl_chapters':dl_chapters})
-if args.book_index != None:
-    indices = [
-        i - 2 for i in map(int, args.book_index)
-        if 2 <= i < len(books.index) + 2
-    ]
-if args.category != None:
-    selected_indices, invalid_categories = indices_of_categories(
-        args.category, books
-    )
-    indices = indices + selected_indices
+	folder = create_path(args.folder if args.folder else './downloads')
 
-if len(indices) == 0 and (len(invalid_categories) > 0 or args.book_index):
-    print_invalid_categories(invalid_categories)
-    print('No book to download.')
-    exit()
+	assert args.language in ('en', 'de'), '-l or --language must be "en" or "de"'
+	if args.language == 'en':
+		table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17858272/data/'
+	elif args.language == 'de':
+		table_url = 'https://resource-cms.springernature.com/springer-cms/rest/v1/content/17863240/data/'
+	 
+	table = 'table_' + table_url.split('/')[-1] + '_' + args.language + '.xlsx'
+	table_path = os.path.join(folder, table)
+	if not os.path.exists(table_path):
+		try:
+			books = pd.read_excel(table_url)
+		except (OSError, IOError) as e:
+			if e.__class__.__name__ == 'HTTPError' and e.getcode() == 404:
+				print('Error: {} URL page not found. '.format(table_url) +
+					  'Fix the URL in the Python script, or get someone to help.')
+			else:
+				print(e)
+			exit(-1)
+		# Save table in the download folder
+		books.to_excel(table_path)
+	else:
+		books = pd.read_excel(table_path, index_col=0, header=0)
 
-indices = list(set(indices))                            # Remove duplicates
-books = filter_books(books, sorted(indices))
-books.index = [i + 2 for i in books.index]              # Recorrect indices
-print_summary(books, invalid_categories, args)
-download_books(books, folder, patches)
+	patches = []
+	indices = []
+	invalid_categories = []
+	if not args.pdf and not args.epub:
+		args.pdf = args.epub = True
+	if args.dl_chapters:
+		dl_chapters = args.pdf = True
+		args.epub = False
+	else:
+		dl_chapters = False
+	if args.pdf:
+		patches.append({'url':'/content/pdf/', 'ext':'.pdf','dl_chapters':dl_chapters})
+	if args.epub:
+		patches.append({'url':'/download/epub/', 'ext':'.epub','dl_chapters':dl_chapters})
+	if args.book_index != None:
+		indices = [
+			i - 2 for i in map(int, args.book_index)
+			if 2 <= i < len(books.index) + 2
+		]
+	if args.category != None:
+		selected_indices, invalid_categories = indices_of_categories(
+			args.category, books
+		)
+		indices = indices + selected_indices
 
-print('\nFinish downloading.')
+	if len(indices) == 0 and (len(invalid_categories) > 0 or args.book_index):
+		print_invalid_categories(invalid_categories)
+		print('No book to download.')
+		exit()
+
+	indices = list(set(indices))                            # Remove duplicates
+	books = filter_books(books, sorted(indices))
+	books.index = [i + 2 for i in books.index]              # Recorrect indices
+	print_summary(books, invalid_categories, args)
+	download_books(books, folder, patches)
+
+	print('\nFinish downloading.')
